@@ -1,0 +1,63 @@
+<html>
+
+<head>
+  <title>文件分片上传</title>
+</head>
+
+<body>
+  <h1>大文件上传测试</h1>
+  <div>
+    <h3>自定义上传文件</h3>
+    <input id="file" type="file" name="avatar" multiple="true" />
+    <div>
+      <input id="submitBtn" type="button" value="提交">
+    </div>
+  </div>
+
+</body>
+<script src="{{ url_for('static',filename='js/spark-md5.js') }}"></script>
+<script src="{{ url_for('static',filename='js/uploadFile.js') }}"></script>
+<script>
+
+  document.getElementById("submitBtn").onclick = async function () {
+    chunkSize = 5 * 1024 * 1024   //单个临时文件大小
+    files = document.getElementById("file").files;
+    files_length = files.length;
+    for (i = 0; i < files_length; i++) {
+      file = files[i]
+      const hexHash = await hashFile(file);
+      const blockCount = Math.ceil(file.size / chunkSize); // 分片总数
+      // 验证文件是否存在， 不存在  则上传
+      is_file_exists = await upload_file_exists(file.name, hexHash)
+      if (is_file_exists === "已存在") {
+        console.log("文件 " + file.name + " 已存在")
+        continue
+      } else {
+        // 分片上传
+        for (j = 0; j < blockCount; j++) {
+          const start = j * chunkSize;
+          const end = Math.min(file.size, start + chunkSize);
+          const tmp_file_name = hexHash + "_" + j + ".tmp"
+          // 分片文件是否存在
+          is_tmp_file_exists = await tmp_file_exists(tmp_file_name)
+          if (is_tmp_file_exists === "已存在") {
+            console.log(tmp_file_name + " 已存在")
+            continue
+          } else {
+            console.log(await upload_tmp_file(file, start, end, tmp_file_name))
+          }
+        }
+        // 合并分片
+        console.log(await merge_file(hexHash, j, file.name))
+        //删除服务器分片
+        console.log(await delete_tmp_file(hexHash, j))
+        console.log(file.name + "  上传成功")
+      }
+
+    }
+
+  }
+
+</script>
+
+</html>
